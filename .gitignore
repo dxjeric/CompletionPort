@@ -26,3 +26,18 @@
 *.exe
 *.out
 *.app
+
+#vs 
+*.sdf
+*.opensdf
+*.suo
+*.user
+
+# 目录
+src/ipch
+exe/
+obj/
+Debug/
+
+# vi/vim .swp file
+*.swp
