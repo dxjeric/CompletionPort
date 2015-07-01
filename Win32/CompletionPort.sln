@@ -5,6 +5,8 @@ VisualStudioVersion = 12.0.21005.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "IOCP_Server", "IOCP_Server.vcxproj", "{919A7182-DF6F-4966-B9C3-6C7CAFC9CFE5}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "IOCP_Client", "IOCP_Client.vcxproj", "{1DC37A16-24E2-4C80-87A5-64351F098D6A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -15,6 +17,10 @@ Global
 		{919A7182-DF6F-4966-B9C3-6C7CAFC9CFE5}.Debug|Win32.Build.0 = Debug|Win32
 		{919A7182-DF6F-4966-B9C3-6C7CAFC9CFE5}.Release|Win32.ActiveCfg = Release|Win32
 		{919A7182-DF6F-4966-B9C3-6C7CAFC9CFE5}.Release|Win32.Build.0 = Release|Win32
+		{1DC37A16-24E2-4C80-87A5-64351F098D6A}.Debug|Win32.ActiveCfg = Debug|Win32
+		{1DC37A16-24E2-4C80-87A5-64351F098D6A}.Debug|Win32.Build.0 = Debug|Win32
+		{1DC37A16-24E2-4C80-87A5-64351F098D6A}.Release|Win32.ActiveCfg = Release|Win32
+		{1DC37A16-24E2-4C80-87A5-64351F098D6A}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -11,10 +11,10 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\Src\System.h" />
+    <ClCompile Include="..\Src\Server.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\Src\Server.cpp" />
+    <ClInclude Include="..\Src\System.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{919A7182-DF6F-4966-B9C3-6C7CAFC9CFE5}</ProjectGuid>
