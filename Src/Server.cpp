@@ -86,7 +86,7 @@ DWORD ThreadProcess(LPVOID pParam)
 					GetAcceptExSockaddrs(pOver->sysBuffer.buf, 0, AcceptExSockAddrInLen, AcceptExSockAddrInLen, 
 										(PSOCKADDR*)&pLocalAddr, &iLocalAddr, (PSOCKADDR*)&pRemoteAddr, &iRemoteAddr);
 
-					printf("%d.%d.%d.%d\n", pRemoteAddr->sin_addr.s_net, pRemoteAddr->sin_addr.s_host, pRemoteAddr->sin_addr.s_lh, pRemoteAddr->sin_addr.s_impno);
+					printf("new connect: %d.%d.%d.%d\n", pRemoteAddr->sin_addr.s_net, pRemoteAddr->sin_addr.s_host, pRemoteAddr->sin_addr.s_lh, pRemoteAddr->sin_addr.s_impno);
 					
 					// 更新连接进来的Socket，希望ClientSocket具有和ListenSocket相同的属性，对ClientSocket调用SO_UPDATE_ACCEPT_CONTEXT
 					if (setsockopt(*pConn, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char*)ListenConn, sizeof(ListenConn)) == SOCKET_ERROR)
@@ -204,7 +204,7 @@ int main()
 	ASSERT(Conn != INVALID_SOCKET, "WSASocket Failed.\n");
 
 	// 关联监听连接和完成端口
-	if (CreateIoCompletionPort((HANDLE)Conn, hIOCP, (DWORD_PTR)&Conn, 0))
+	if (!CreateIoCompletionPort((HANDLE)Conn, hIOCP, (DWORD_PTR)&Conn, 0))
 		ASSERT(false, "CreateIoCompletionPort Associate IOCP with Conn Failed.\n");
 
 
