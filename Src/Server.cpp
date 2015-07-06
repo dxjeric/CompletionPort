@@ -103,6 +103,7 @@ DWORD ThreadProcess(LPVOID pParam)
 					printf("new connect: %d.%d.%d.%d\n", pRemoteAddr->sin_addr.s_net, pRemoteAddr->sin_addr.s_host, pRemoteAddr->sin_addr.s_lh, pRemoteAddr->sin_addr.s_impno);
 					
 					// 更新连接进来的Socket，希望ClientSocket具有和ListenSocket相同的属性，对ClientSocket调用SO_UPDATE_ACCEPT_CONTEXT
+					// git snap (00e097d): WSAEFAULT 参数4应该是地址
 					if (setsockopt(sAcceptConn, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char*)&sListenConn, sizeof(sListenConn)) == SOCKET_ERROR)
 					{
 						Log("EOLOT_Accept [%d] setsockopt Error[%d].\n", sAcceptConn, WSAGetLastError());
