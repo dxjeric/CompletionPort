@@ -84,7 +84,7 @@ DWORD ThreadProcess(LPVOID pParam)
 		
 		if ((dwBytes == 0 && (pOver->opType == OverLapped::OLOpType::EOLOT_Send || pOver->opType == OverLapped::OLOpType::EOLOT_Recv)) || (pOver->opType == OverLapped::OLOpType::EOLOT_Accept && WSAGetLastError() == WSA_OPERATION_ABORTED))
 		{
-			closesocket(*pConn);
+			closesocket((SOCKET)pOver->sysBuffer.len);
 			delete pOver;
 		}
 		else
@@ -126,9 +126,10 @@ DWORD ThreadProcess(LPVOID pParam)
 					OverLapped* pRecvOver = new OverLapped;
 					pRecvOver->opType = OverLapped::EOLOT_Recv;
 					pRecvOver->sysBuffer.len = OverLappedBufferLen;
-
 					// 等待接受数据
-					int nResult = WSARecv(sAcceptConn, &pRecvOver->sysBuffer, 1, &dwBytes, &dwFlag, &pRecvOver->sysOverLapped, 0);
+					// git snap(): Error = WSAEOPNOTSUPP(10045 Operation not supported)， 参数5：flag错误
+					DWORD dwTemp[2] = {0, 0}; 
+					int nResult = WSARecv(sAcceptConn, &pRecvOver->sysBuffer, 1, &dwTemp[0], &dwTemp[1], &pRecvOver->sysOverLapped, NULL);
 					if (nResult == SOCKET_ERROR && ((iError = WSAGetLastError()) != ERROR_IO_PENDING))
 					{
 						Log("EOLOT_Accept [%d] WSARecv Error[%d].\n", sAcceptConn, iError);
@@ -136,7 +137,7 @@ DWORD ThreadProcess(LPVOID pParam)
 						delete pRecvOver;
 						break;
 					}
-					Log("EOLOT_Accept WSARecv OK");
+					Log("EOLOT_Accept WSARecv OK.\n");
 
 					// 发送第一个数据					
 					OverLapped* pSendOver = new OverLapped;
@@ -198,7 +199,7 @@ void AddWaitingAcceptConn(SOCKET sListenConn, LPFN_ACCEPTEX lpfnAcceptEx)
 	for (int a = 0; a < WaitingAcceptCon; a++)
 	{
 		SOCKET sAcceptConn = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_IP, 0, 0, WSA_FLAG_OVERLAPPED);
-		//SOCKET sAcceptConn = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_IP, 0, 0, WSA_FLAG_OVERLAPPED);
+		//SOCKET sAcceptConn = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_IP, 0, 0, WSA_FLAG_OVERLAPPED);		
 		if (sAcceptConn == INVALID_SOCKET)
 			return;
 		
