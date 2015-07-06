@@ -14,8 +14,18 @@
 #define WaitingAcceptCon 2
 #define AcceptExSockAddrInLen (sizeof(SOCKADDR_IN) + 16)
 #define MustPrint(s) {printf("Must >> %s\n", s); fflush(stdout);}
+#define PrintLogInfoLen 256
 
 
+void Log(const char* strFormat, ...)
+{
+	char strLog[PrintLogInfoLen];
+	va_list vlArgs;
+	va_start(vlArgs, strFormat);
+	int offset = vsnprintf_s(strLog, PrintLogInfoLen, strFormat, vlArgs);
+	va_end(vlArgs);
+	printf("%s\n", strLog);
+}
 
 typedef struct OverLapped
 {
@@ -170,21 +180,22 @@ DWORD ThreadProcess(LPVOID pParam)
 }
 
 
-void AddWaitingAcceptConn(SOCKET Conn, LPFN_ACCEPTEX lpfnAcceptEx)
+void AddWaitingAcceptConn(SOCKET sListenConn, LPFN_ACCEPTEX lpfnAcceptEx)
 {
 	for (int a = 0; a < WaitingAcceptCon; a++)
 	{
 		SOCKET AcceptConn = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_IP, 0, 0, WSA_FLAG_OVERLAPPED);
 		if (AcceptConn == INVALID_SOCKET)
 			return;
-
+		
+		Log("WSASocket new AccepteConn [%d].", AcceptConn);
 		OverLapped* pAcceptExOverLapped = new OverLapped;
 		pAcceptExOverLapped->opType = OverLapped::OLOpType::EOLOT_Accept;
 		pAcceptExOverLapped->sysBuffer.len = (DWORD)AcceptConn;
 
 		DWORD dwBytes;
-		BOOL bRet = lpfnAcceptEx(Conn, AcceptConn, pAcceptExOverLapped->sysBuffer.buf, 0, AcceptExSockAddrInLen, AcceptExSockAddrInLen, &dwBytes, &pAcceptExOverLapped->sysOverLapped);
-		if (!lpfnAcceptEx(Conn, AcceptConn, pAcceptExOverLapped->sysBuffer.buf, 0, AcceptExSockAddrInLen, AcceptExSockAddrInLen, &dwBytes, &pAcceptExOverLapped->sysOverLapped))
+		BOOL bRet = AcceptEx(sListenConn, AcceptConn, pAcceptExOverLapped->sysBuffer.buf, 0, AcceptExSockAddrInLen, AcceptExSockAddrInLen, &dwBytes, &pAcceptExOverLapped->sysOverLapped);		
+		if (!bRet && WSAGetLastError() != WSA_IO_PENDING)
 		{
 			printf("WSAGetLastError = [%d].\n", WSAGetLastError());
 			delete pAcceptExOverLapped;
@@ -197,7 +208,7 @@ void AddWaitingAcceptConn(SOCKET Conn, LPFN_ACCEPTEX lpfnAcceptEx)
 
 
 
-void Flush(SOCKET Conn, HANDLE hAcceptExEvent, LPFN_ACCEPTEX lpfnAcceptEx)
+void Flush(SOCKET sListenConn, HANDLE hAcceptExEvent, LPFN_ACCEPTEX lpfnAcceptEx)
 {
 	DWORD dwResult = WaitForSingleObject(hAcceptExEvent, 0);
 
@@ -207,7 +218,7 @@ void Flush(SOCKET Conn, HANDLE hAcceptExEvent, LPFN_ACCEPTEX lpfnAcceptEx)
 	}
 	else if (dwResult != WAIT_TIMEOUT)
 	{
-		AddWaitingAcceptConn(Conn, lpfnAcceptEx);
+		AddWaitingAcceptConn(sListenConn, lpfnAcceptEx);
 	}
 }
 
@@ -219,8 +230,8 @@ int main()
 	HANDLE hIOCP = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, NULL, 2);
 	IOCP_ASSERT(hIOCP != NULL, "CreateIoCompletionPort Failed.\n");
 
-	SOCKET Conn = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_IP, 0, 0, WSA_FLAG_OVERLAPPED);
-	IOCP_ASSERT(Conn != INVALID_SOCKET, "WSASocket Failed.\n");
+	SOCKET sLinstenConn = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_IP, 0, 0, WSA_FLAG_OVERLAPPED);
+	IOCP_ASSERT(sLinstenConn != INVALID_SOCKET, "WSASocket Failed.\n");
 	MustPrint("Socket Create Ok.\n");
 
 	//int nReuseAddr = 1;
@@ -229,22 +240,22 @@ int main()
 	SOCKADDR_IN addr;
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(6666);
-	addr.sin_addr.s_addr = htonl(INADDR_ANY); // inet_addr("127.0.0.1"); // htonl(INADDR_ANY);
+	addr.sin_addr.s_addr = inet_addr("127.0.0.1"); // inet_addr("127.0.0.1"); // htonl(INADDR_ANY);
 
-	if (bind(Conn, (PSOCKADDR)&addr, sizeof(addr)) == SOCKET_ERROR)
+	if (bind(sLinstenConn, (PSOCKADDR)&addr, sizeof(addr)) == SOCKET_ERROR)
 		IOCP_ASSERT(false, "bind Failed.\n");
 	
 	// 参数2：	The maximum length of the queue of pending connections.  
 	//			If set to SOMAXCONN, the underlying service provider responsible for socket s will set the backlog to a maximum reasonable value. 
 	//			There is no standard provision to obtain the actual backlog value
 	//			等待队列的最大长度。
-	if (listen(Conn, SOMAXCONN) == SOCKET_ERROR)
+	if (listen(sLinstenConn, SOMAXCONN) == SOCKET_ERROR)
 		IOCP_ASSERT(false, "listen Failed.\n");
 
 	MustPrint("Listen OK.\n");
 
 	// 关联监听连接和完成端口
-	if (!CreateIoCompletionPort((HANDLE)Conn, hIOCP, (DWORD_PTR)&Conn, 0))
+	if (!CreateIoCompletionPort((HANDLE)sLinstenConn, hIOCP, (DWORD_PTR)&sLinstenConn, 0))
 		IOCP_ASSERT(false, "CreateIoCompletionPort Associate IOCP with Conn Failed.\n");
 
 	MustPrint("Create IOCP OK.\n");
@@ -256,7 +267,7 @@ int main()
 	GUID GuidAcceptEx = WSAID_ACCEPTEX;	 // WSAID_GETACCEPTEXSOCKADDRS	
 	LPFN_ACCEPTEX lpfnAcceptEx = NULL;
 	DWORD dwBytes;
-	int iResult = WSAIoctl(Conn, SIO_GET_EXTENSION_FUNCTION_POINTER,
+	int iResult = WSAIoctl(sLinstenConn, SIO_GET_EXTENSION_FUNCTION_POINTER,
 		&GuidAcceptEx, sizeof (GuidAcceptEx),
 		&lpfnAcceptEx, sizeof (lpfnAcceptEx),
 		&dwBytes, NULL, NULL);
@@ -264,7 +275,7 @@ int main()
 	// 创建工作线程, 线程关联数据
 	ThreadInfo tThreadInfo;
 	tThreadInfo.hIOCP = hIOCP;
-	tThreadInfo.Conn = Conn;
+	tThreadInfo.Conn = sLinstenConn;
 	//tThreadInfo.lpfAccepEx = lpfnAcceptEx;
 	HANDLE hWorkThread = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)ThreadProcess, &tThreadInfo, 0, 0);
 	IOCP_ASSERT(hWorkThread, "CreateThread Failed.\n");
@@ -273,16 +284,16 @@ int main()
 	// 创建事件，在AcceptEx中的预分配的连接使用完时，再次创建
 	HANDLE hAcceptExEvent = CreateEvent(0, false, false, 0);
 	IOCP_ASSERT(hAcceptExEvent, "CreateEvent Failed.\n");
-	iResult = WSAEventSelect(Conn, hAcceptExEvent, FD_ACCEPT);
+	iResult = WSAEventSelect(sLinstenConn, hAcceptExEvent, FD_ACCEPT);
 	IOCP_ASSERT(iResult != SOCKET_ERROR, "WSAEventSelect Failed.\n");
 	MustPrint("Event Select OK.\n");
 
 	// 添加第一批的预创建连接
-	AddWaitingAcceptConn(Conn, lpfnAcceptEx);
+	AddWaitingAcceptConn(sLinstenConn, lpfnAcceptEx);
 
 	while (true)
 	{
-		Flush(Conn, hAcceptExEvent, lpfnAcceptEx);
+		Flush(sLinstenConn, hAcceptExEvent, lpfnAcceptEx);
 	}
 
 	return 1;
