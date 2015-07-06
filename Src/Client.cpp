@@ -106,8 +106,8 @@ int main()
 		if (nRet <= 0 && ((iErrorNo = WSAGetLastError()) != WSAEWOULDBLOCK))
 		{
 			printf("WSAGetLastError = %d.\n", iErrorNo);
-			IOCP_ASSERT(false, "recv Error.\n");
-			return 0;
+			// IOCP_ASSERT(false, "recv Error.\n");
+			break;
 		}
 		else
 		{

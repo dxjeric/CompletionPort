@@ -15,6 +15,7 @@
 #define AcceptExSockAddrInLen (sizeof(SOCKADDR_IN) + 16)
 #define MustPrint(s) {printf("Must >> %s\n", s); fflush(stdout);}
 #define PrintLogInfoLen 256
+#define LogFlush(hFile) fflush(hFile)
 
 
 void Log(const char* strFormat, ...)
@@ -25,6 +26,7 @@ void Log(const char* strFormat, ...)
 	int offset = vsnprintf_s(strLog, PrintLogInfoLen, strFormat, vlArgs);
 	va_end(vlArgs);
 	printf("%s\n", strLog);
+	LogFlush(stdout);
 }
 
 typedef struct OverLapped
@@ -66,7 +68,7 @@ DWORD ThreadProcess(LPVOID pParam)
 	ThreadInfo* pThreadInfo = (ThreadInfo*)pParam;
 
 	HANDLE hIOCP = pThreadInfo->hIOCP;
-	SOCKET ListenConn = pThreadInfo->Conn;
+	SOCKET sListenConn = pThreadInfo->Conn;
 	OverLapped* pOver = NULL;
 	SOCKET* pConn	  = NULL;
 	DWORD	dwBytes;
@@ -91,8 +93,8 @@ DWORD ThreadProcess(LPVOID pParam)
 			{
 				case OverLapped::OLOpType::EOLOT_Accept:
 				{
-					SOCKET AcceptConn = *pConn;
-					int iLocalAddr, iRemoteAddr;
+					SOCKET sAcceptConn = (SOCKET)pOver->sysBuffer.len;
+					int iLocalAddr, iRemoteAddr, iError;
 					LPSOCKADDR pLocalAddr;
 					sockaddr_in* pRemoteAddr = NULL;
 					GetAcceptExSockaddrs(pOver->sysBuffer.buf, 0, AcceptExSockAddrInLen, AcceptExSockAddrInLen, 
@@ -101,45 +103,55 @@ DWORD ThreadProcess(LPVOID pParam)
 					printf("new connect: %d.%d.%d.%d\n", pRemoteAddr->sin_addr.s_net, pRemoteAddr->sin_addr.s_host, pRemoteAddr->sin_addr.s_lh, pRemoteAddr->sin_addr.s_impno);
 					
 					// 更新连接进来的Socket，希望ClientSocket具有和ListenSocket相同的属性，对ClientSocket调用SO_UPDATE_ACCEPT_CONTEXT
-					if (setsockopt(*pConn, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char*)ListenConn, sizeof(ListenConn)) == SOCKET_ERROR)
+					if (setsockopt(sAcceptConn, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char*)&sListenConn, sizeof(sListenConn)) == SOCKET_ERROR)
 					{
-						closesocket(AcceptConn);
+						Log("EOLOT_Accept [%d] setsockopt Error[%d].\n", sAcceptConn, WSAGetLastError());
+						closesocket(sAcceptConn);
 						delete pOver;
 						break;
 					}
 
 					// IOCP管理连接
-					if (!CreateIoCompletionPort((HANDLE)AcceptConn, hIOCP, AcceptConn, 0))
+					if (!CreateIoCompletionPort((HANDLE)sAcceptConn, hIOCP, sAcceptConn, 0))
 					{
-						closesocket(AcceptConn);
+						Log("EOLOT_Accept [%d] CreateIoCompletionPort Error [%d].\n", sAcceptConn, WSAGetLastError());
+						closesocket(sAcceptConn);
 						delete pOver;
 						break;
 					}
 
-					pOver->opType = OverLapped::EOLOT_Recv;
-					pOver->sysBuffer.len = OverLappedBufferLen;
+					delete pOver;
+
+					OverLapped* pRecvOver = new OverLapped;
+					pRecvOver->opType = OverLapped::EOLOT_Recv;
+					pRecvOver->sysBuffer.len = OverLappedBufferLen;
 
 					// 等待接受数据
-					int nResult = WSARecv(AcceptConn, &pOver->sysBuffer, 1, &dwBytes, &dwFlag, &pOver->sysOverLapped, 0);
-					if (nResult == SOCKET_ERROR && WSAGetLastError() != ERROR_IO_PENDING)
+					int nResult = WSARecv(sAcceptConn, &pRecvOver->sysBuffer, 1, &dwBytes, &dwFlag, &pRecvOver->sysOverLapped, 0);
+					if (nResult == SOCKET_ERROR && ((iError = WSAGetLastError()) != ERROR_IO_PENDING))
 					{
-						closesocket(AcceptConn);
-						delete pOver;
+						Log("EOLOT_Accept [%d] WSARecv Error[%d].\n", sAcceptConn, iError);
+						closesocket(sAcceptConn);
+						delete pRecvOver;
 						break;
 					}
+					Log("EOLOT_Accept WSARecv OK");
 
 					// 发送第一个数据					
 					OverLapped* pSendOver = new OverLapped;
 					pSendOver->opType = OverLapped::OLOpType::EOLOT_Send;
 					ZeroMemory(pSendOver->dataBuffer, OverLappedBufferLen);
 					sprintf_s(pSendOver->dataBuffer, "server new send [%d].\n", GetTickCount());
-					int nResult2 = WSASend(*pConn, &pSendOver->sysBuffer, 1, &dwBytes, 0, &pSendOver->sysOverLapped, 0);
-					if (nResult2 == SOCKET_ERROR && WSAGetLastError() != ERROR_IO_PENDING)
+					int nResult2 = WSASend(sAcceptConn, &pSendOver->sysBuffer, 1, &dwBytes, 0, &pSendOver->sysOverLapped, 0);
+					if (nResult2 == SOCKET_ERROR && ((iError = WSAGetLastError()) != ERROR_IO_PENDING))
 					{
-						closesocket(*pConn);
-						delete pOver;
+						Log("EOLOT_Accept [%d] WSASend Error[%d].\n", sAcceptConn, iError);				
+						closesocket(sAcceptConn);
+						delete pSendOver;
 						break;
 					}
+
+					Log("EOLOT_Accept WSASend OK");
 				}break; // OverLapped::OLOpType::EOLOT_Accept
 
 				case OverLapped::OLOpType::EOLOT_Send:
@@ -184,17 +196,21 @@ void AddWaitingAcceptConn(SOCKET sListenConn, LPFN_ACCEPTEX lpfnAcceptEx)
 {
 	for (int a = 0; a < WaitingAcceptCon; a++)
 	{
-		SOCKET AcceptConn = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_IP, 0, 0, WSA_FLAG_OVERLAPPED);
-		if (AcceptConn == INVALID_SOCKET)
+		SOCKET sAcceptConn = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_IP, 0, 0, WSA_FLAG_OVERLAPPED);
+		//SOCKET sAcceptConn = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_IP, 0, 0, WSA_FLAG_OVERLAPPED);
+		if (sAcceptConn == INVALID_SOCKET)
 			return;
 		
-		Log("WSASocket new AccepteConn [%d].", AcceptConn);
+		Log("WSASocket new AccepteConn [%d].", sAcceptConn);
 		OverLapped* pAcceptExOverLapped = new OverLapped;
 		pAcceptExOverLapped->opType = OverLapped::OLOpType::EOLOT_Accept;
-		pAcceptExOverLapped->sysBuffer.len = (DWORD)AcceptConn;
+		pAcceptExOverLapped->sysBuffer.len = (DWORD)sAcceptConn;
 
+
+		// git snap(0342d1d): 调用 AcceptEx 返回错误 (WSA_IO_PENDING)
+		// git snap(6234b13): 增加测试代码(BOOL bRet = AcceptEx, 并打印错误码), 返回错误(WSAEINVAL), 因为sAcceptConn被AcceptEx两次
 		DWORD dwBytes;
-		BOOL bRet = AcceptEx(sListenConn, AcceptConn, pAcceptExOverLapped->sysBuffer.buf, 0, AcceptExSockAddrInLen, AcceptExSockAddrInLen, &dwBytes, &pAcceptExOverLapped->sysOverLapped);		
+		BOOL bRet = AcceptEx(sListenConn, sAcceptConn, pAcceptExOverLapped->sysBuffer.buf, 0, AcceptExSockAddrInLen, AcceptExSockAddrInLen, &dwBytes, &pAcceptExOverLapped->sysOverLapped);		
 		if (!bRet && WSAGetLastError() != WSA_IO_PENDING)
 		{
 			printf("WSAGetLastError = [%d].\n", WSAGetLastError());
