@@ -127,7 +127,7 @@ DWORD ThreadProcess(LPVOID pParam)
 					pRecvOver->opType = OverLapped::EOLOT_Recv;
 					pRecvOver->sysBuffer.len = OverLappedBufferLen;
 					// 等待接受数据
-					// git snap(): Error = WSAEOPNOTSUPP(10045 Operation not supported)， 参数5：flag错误
+					// git snap(6fa835e): Error = WSAEOPNOTSUPP(10045 Operation not supported)， 参数5：flag错误
 					DWORD dwTemp[2] = {0, 0}; 
 					int nResult = WSARecv(sAcceptConn, &pRecvOver->sysBuffer, 1, &dwTemp[0], &dwTemp[1], &pRecvOver->sysOverLapped, NULL);
 					if (nResult == SOCKET_ERROR && ((iError = WSAGetLastError()) != ERROR_IO_PENDING))
