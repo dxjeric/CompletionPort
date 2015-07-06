@@ -41,3 +41,6 @@ Debug/
 
 # vi/vim .swp file
 *.swp
+
+# log file
+*副本*
