@@ -15,7 +15,7 @@
 #define WaitingAcceptCon 5
 #define AcceptExSockAddrInLen (sizeof(SOCKADDR_IN) + 16)
 #define MustPrint(s) {printf("Must >> %s\n", s); fflush(stdout);}
-#define TestIPAddr "192.168.2.16"
+#define TestIPAddr "127.0.0.1"
 
 
 typedef struct OverLapped
