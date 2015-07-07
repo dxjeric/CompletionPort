@@ -8,8 +8,6 @@
 //-------------------------------------------------------------------------------------------------
 
 #ifdef _WIN32
-//#include <winsock2.h>
-//#include <mswsock.h>
 #include <WinSock2.h>
 #include <MSWSock.h>
 #include <assert.h>
@@ -21,6 +19,4 @@
 
 #pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "mswsock.lib")
-
-
 #endif // _WIN32

@@ -7,27 +7,15 @@
 //	Purpose:	完成端口练习测试
 //-------------------------------------------------------------------------------------------------
 #include "System.h"
-
+#include "Common.h"
 
 #define IOCP_ASSERT(e, info) {if(!(e)) {printf(info); printf("GetLastError [%d].\n", WSAGetLastError()); fflush(stdout); assert(false);}}
 #define OverLappedBufferLen 10240
 #define WaitingAcceptCon 2
 #define AcceptExSockAddrInLen (sizeof(SOCKADDR_IN) + 16)
 #define MustPrint(s) {printf("Must >> %s\n", s); fflush(stdout);}
-#define PrintLogInfoLen 256
-#define LogFlush(hFile) fflush(hFile)
+#define TestIPAddr "192.168.2.16"
 
-
-void Log(const char* strFormat, ...)
-{
-	char strLog[PrintLogInfoLen];
-	va_list vlArgs;
-	va_start(vlArgs, strFormat);
-	int offset = vsnprintf_s(strLog, PrintLogInfoLen, strFormat, vlArgs);
-	va_end(vlArgs);
-	printf("%s\n", strLog);
-	LogFlush(stdout);
-}
 
 typedef struct OverLapped
 {
@@ -103,7 +91,7 @@ DWORD ThreadProcess(LPVOID pParam)
 					printf("new connect: %d.%d.%d.%d\n", pRemoteAddr->sin_addr.s_net, pRemoteAddr->sin_addr.s_host, pRemoteAddr->sin_addr.s_lh, pRemoteAddr->sin_addr.s_impno);
 					
 					// 更新连接进来的Socket，希望ClientSocket具有和ListenSocket相同的属性，对ClientSocket调用SO_UPDATE_ACCEPT_CONTEXT
-					// git snap (00e097d): WSAEFAULT 参数4应该是地址
+					// git snap (00e097d): WSAEFAULT 参数4应该指针
 					if (setsockopt(sAcceptConn, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char*)&sListenConn, sizeof(sListenConn)) == SOCKET_ERROR)
 					{
 						Log("EOLOT_Accept [%d] setsockopt Error[%d].\n", sAcceptConn, WSAGetLastError());
@@ -112,8 +100,9 @@ DWORD ThreadProcess(LPVOID pParam)
 						break;
 					}
 
-					// IOCP管理连接
-					if (!CreateIoCompletionPort((HANDLE)sAcceptConn, hIOCP, sAcceptConn, 0))
+					// IOCP管理连接 
+					// 参数4：指针
+					if (!CreateIoCompletionPort((HANDLE)sAcceptConn, hIOCP, (DWORD_PTR)&sAcceptConn, 0))
 					{
 						Log("EOLOT_Accept [%d] CreateIoCompletionPort Error [%d].\n", sAcceptConn, WSAGetLastError());
 						closesocket(sAcceptConn);
@@ -126,8 +115,9 @@ DWORD ThreadProcess(LPVOID pParam)
 					OverLapped* pRecvOver = new OverLapped;
 					pRecvOver->opType = OverLapped::EOLOT_Recv;
 					pRecvOver->sysBuffer.len = OverLappedBufferLen;
+					ZeroMemory(pRecvOver->dataBuffer, OverLappedBufferLen);
 					// 等待接受数据
-					// git snap(6fa835e): Error = WSAEOPNOTSUPP(10045 Operation not supported)， 参数5：flag错误
+					// git snap(6fa835e): Error = WSAEOPNOTSUPP(10045 Operation not supported), 参数5：flag错误
 					DWORD dwTemp[2] = {0, 0}; 
 					int nResult = WSARecv(sAcceptConn, &pRecvOver->sysBuffer, 1, &dwTemp[0], &dwTemp[1], &pRecvOver->sysOverLapped, NULL);
 					if (nResult == SOCKET_ERROR && ((iError = WSAGetLastError()) != ERROR_IO_PENDING))
@@ -137,13 +127,15 @@ DWORD ThreadProcess(LPVOID pParam)
 						delete pRecvOver;
 						break;
 					}
-					Log("EOLOT_Accept WSARecv OK.\n");
+					Log("EOLOT_Accept [%d] WSARecv OK.\n", sAcceptConn);
 
-					// 发送第一个数据					
+					// 发送第一个数据
+					// git snap(): Erro = 
 					OverLapped* pSendOver = new OverLapped;
 					pSendOver->opType = OverLapped::OLOpType::EOLOT_Send;
 					ZeroMemory(pSendOver->dataBuffer, OverLappedBufferLen);
-					sprintf_s(pSendOver->dataBuffer, "server new send [%d].\n", GetTickCount());
+					sprintf_s(pSendOver->dataBuffer, "server new send [%d].", GetTickCount());
+					pSendOver->sysBuffer.len = strlen(pSendOver->dataBuffer);					
 					int nResult2 = WSASend(sAcceptConn, &pSendOver->sysBuffer, 1, &dwBytes, 0, &pSendOver->sysOverLapped, 0);
 					if (nResult2 == SOCKET_ERROR && ((iError = WSAGetLastError()) != ERROR_IO_PENDING))
 					{
@@ -165,12 +157,15 @@ DWORD ThreadProcess(LPVOID pParam)
 				{
 					char* pData = pOver->dataBuffer;
 					printf("%s\n", pData);
+					SOCKET sAcceptConn = *pConn;
 
 					// 等待接受下一组数据
-					int nResult = WSARecv(*pConn, &pOver->sysBuffer, 1, &dwBytes, &dwFlag, &pOver->sysOverLapped, 0);
+					ZeroMemory(pOver->dataBuffer, OverLappedBufferLen);
+					DWORD dwTemp[2] = { 0, 0 };
+					int nResult = WSARecv(sAcceptConn, &pOver->sysBuffer, 1, &dwTemp[0], &dwTemp[1], &pOver->sysOverLapped, 0);
 					if (nResult == SOCKET_ERROR && WSAGetLastError() != ERROR_IO_PENDING)
 					{
-						closesocket(*pConn);
+						closesocket(sAcceptConn);
 						delete pOver;
 						break;
 					}
@@ -179,11 +174,12 @@ DWORD ThreadProcess(LPVOID pParam)
 					OverLapped* pSendOver = new OverLapped;
 					pSendOver->opType = OverLapped::OLOpType::EOLOT_Send;
 					ZeroMemory(pSendOver->dataBuffer, OverLappedBufferLen);
-					sprintf_s(pSendOver->dataBuffer, "server new send [%d].\n", GetTickCount());
-					int nResult2 = WSASend(*pConn, &pSendOver->sysBuffer, 1, &dwBytes, 0, &pSendOver->sysOverLapped, 0);
+					sprintf_s(pSendOver->dataBuffer, "server new send [%d].", GetTickCount());
+					pSendOver->sysBuffer.len = strlen(pSendOver->dataBuffer);
+					int nResult2 = WSASend(sAcceptConn, &pSendOver->sysBuffer, 1, &dwBytes, 0, &pSendOver->sysOverLapped, 0);
 					if (nResult2 == SOCKET_ERROR && WSAGetLastError() != ERROR_IO_PENDING)
 					{
-						closesocket(*pConn);
+						closesocket(sAcceptConn);
 						delete pOver;
 						break;
 					}
@@ -258,7 +254,7 @@ int main()
 	SOCKADDR_IN addr;
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(6666);
-	addr.sin_addr.s_addr = inet_addr("127.0.0.1"); // inet_addr("127.0.0.1"); // htonl(INADDR_ANY);
+	addr.sin_addr.s_addr = inet_addr(TestIPAddr); // inet_addr("127.0.0.1"); // htonl(INADDR_ANY);
 
 	if (bind(sLinstenConn, (PSOCKADDR)&addr, sizeof(addr)) == SOCKET_ERROR)
 		IOCP_ASSERT(false, "bind Failed.\n");

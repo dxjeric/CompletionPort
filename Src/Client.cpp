@@ -7,6 +7,7 @@
 //	Purpose:	完成端口练习测试
 //-------------------------------------------------------------------------------------------------
 #include "System.h"
+#include "Common.h"
 
 
 #define IOCP_ASSERT(e, info) {if(!(e)) {printf(info); fflush(stdout); assert(false);}}
@@ -14,7 +15,7 @@
 #define WaitingAcceptCon 5
 #define AcceptExSockAddrInLen (sizeof(SOCKADDR_IN) + 16)
 #define MustPrint(s) {printf("Must >> %s\n", s); fflush(stdout);}
-
+#define TestIPAddr "192.168.2.16"
 
 
 typedef struct OverLapped
@@ -57,16 +58,16 @@ int main()
 	setsockopt(Conn, SOL_SOCKET, SO_KEEPALIVE, (char*)&bKeepAlive, sizeof(bKeepAlive));
 
 	// 长连接的检测
-	//tcp_keepalive tIn, tOut;
-	//tIn.onoff = 1;
-	//tIn.keepalivetime = 1000;
-	//tIn.keepaliveinterval = 1000;
-	//DWORD dwBytes;
-	//WSAIoctl(Conn, SIO_KEEPALIVE_VALS, (LPVOID)&tIn, sizeof(tcp_keepalive), (LPVOID)&tOut, sizeof(tcp_keepalive), &dwBytes, 0, 0);
+	tcp_keepalive tIn, tOut;
+	tIn.onoff = 1;
+	tIn.keepalivetime = 1000;
+	tIn.keepaliveinterval = 1000;
+	DWORD dwBytes;
+	WSAIoctl(Conn, SIO_KEEPALIVE_VALS, (LPVOID)&tIn, sizeof(tcp_keepalive), (LPVOID)&tOut, sizeof(tcp_keepalive), &dwBytes, 0, 0);
 
 	//// 
-	//int nReuseAddr = 1;
-	//setsockopt(Conn, SOL_SOCKET, SO_REUSEADDR, (const char*)&nReuseAddr, sizeof(int));
+	int nReuseAddr = 1;
+	setsockopt(Conn, SOL_SOCKET, SO_REUSEADDR, (const char*)&nReuseAddr, sizeof(int));
 	
 	// 设置当有数据在待发送区时，closesocket的行为
 	linger tLinger;
@@ -86,7 +87,7 @@ int main()
 	SOCKADDR_IN addr;
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(6666);
-	addr.sin_addr.s_addr = inet_addr("127.0.0.1"); // htonl(INADDR_ANY);
+	addr.sin_addr.s_addr = inet_addr(TestIPAddr); // htonl(INADDR_ANY);
 	//WSAConnect(Conn, (sockaddr*)&addr, sizeof(addr), );
 	if (connect(Conn, (sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR)
 	{
