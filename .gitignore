@@ -42,5 +42,6 @@ Debug/
 # vi/vim .swp file
 *.swp
 
-# log file
+# log file Windows ex-file
 *副本*
+~$*.pptx
