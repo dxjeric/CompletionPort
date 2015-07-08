@@ -114,7 +114,7 @@ int main()
 		{
 			printf("Recv From Server [%s].\n", pBuf);
 
-			sprintf_s(pBuf, "Client new send [%d].\n", GetTickCount());
+			sprintf_s(pBuf, "Client new send time %d.\n", GetTickCount());
 			nRet = send(Conn, pBuf, strlen(pBuf), 0);
 			if (nRet <= 0 && ((iErrorNo = WSAGetLastError()) != WSAEWOULDBLOCK))
 			{

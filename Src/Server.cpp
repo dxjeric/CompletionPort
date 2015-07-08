@@ -134,7 +134,7 @@ DWORD ThreadProcess(LPVOID pParam)
 					OverLapped* pSendOver = new OverLapped;
 					pSendOver->opType = OverLapped::OLOpType::EOLOT_Send;
 					ZeroMemory(pSendOver->dataBuffer, OverLappedBufferLen);
-					sprintf_s(pSendOver->dataBuffer, "server new send [%d].", GetTickCount());
+					sprintf_s(pSendOver->dataBuffer, "server new send time %d", GetTickCount());
 					pSendOver->sysBuffer.len = strlen(pSendOver->dataBuffer);					
 					int nResult2 = WSASend(sAcceptConn, &pSendOver->sysBuffer, 1, &dwBytes, 0, &pSendOver->sysOverLapped, 0);
 					if (nResult2 == SOCKET_ERROR && ((iError = WSAGetLastError()) != ERROR_IO_PENDING))
@@ -169,12 +169,14 @@ DWORD ThreadProcess(LPVOID pParam)
 						delete pOver;
 						break;
 					}
+					printf("Recv From Client [%s].\n", pOver->dataBuffer);
+
 
 					// 模拟发送测试数据
 					OverLapped* pSendOver = new OverLapped;
 					pSendOver->opType = OverLapped::OLOpType::EOLOT_Send;
 					ZeroMemory(pSendOver->dataBuffer, OverLappedBufferLen);
-					sprintf_s(pSendOver->dataBuffer, "server new send [%d].", GetTickCount());
+					sprintf_s(pSendOver->dataBuffer, "server new send time %d", GetTickCount());
 					pSendOver->sysBuffer.len = strlen(pSendOver->dataBuffer);
 					int nResult2 = WSASend(sAcceptConn, &pSendOver->sysBuffer, 1, &dwBytes, 0, &pSendOver->sysOverLapped, 0);
 					if (nResult2 == SOCKET_ERROR && WSAGetLastError() != ERROR_IO_PENDING)
