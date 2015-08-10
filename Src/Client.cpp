@@ -44,6 +44,30 @@ inline OverLapped::OverLapped()
 	sysBuffer.buf = dataBuffer;
 }
 
+
+void ThreadWork(LPWORD pParam)
+{
+	SOCKET Conn = *((SOCKET*)pParam);
+
+	char pBuf[OverLappedBufferLen];
+	int iErrorNo, nRet;
+	while (1)
+	{
+		ZeroMemory(pBuf, OverLappedBufferLen);
+		sprintf_s(pBuf, ">> Thread Send msg %d", GetTickCount());
+		nRet = send(Conn, pBuf, strlen(pBuf), 0);
+		if (nRet <= 0 && ((iErrorNo = WSAGetLastError()) != WSAEWOULDBLOCK))
+		{
+			printf("WSAGetLastError = %d.\n", iErrorNo);
+			IOCP_ASSERT(false, "send Error.\n");
+			return;
+		}
+
+		Sleep(1000);
+	}
+	return;
+}
+
 int main()
 {
 	WSADATA wsData;
@@ -95,6 +119,7 @@ int main()
 	}
 	MustPrint("connect Server OK.\n");
 
+	HANDLE hWorkThread = CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)ThreadWork, &Conn, 0, 0);
 
 	char pBuf[OverLappedBufferLen];
 	int iErrorNo;
@@ -113,7 +138,7 @@ int main()
 		else
 		{
 			printf("Recv From Server [%s].\n", pBuf);
-
+			fflush(stdout);
 			sprintf_s(pBuf, "Client new send time %d", GetTickCount());
 			nRet = send(Conn, pBuf, strlen(pBuf), 0);
 			if (nRet <= 0 && ((iErrorNo = WSAGetLastError()) != WSAEWOULDBLOCK))
