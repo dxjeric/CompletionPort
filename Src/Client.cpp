@@ -112,7 +112,7 @@ int main()
 		}
 		else
 		{
-			printf("Recv From Server [%s].", pBuf);
+			printf("Recv From Server [%s].\n", pBuf);
 
 			sprintf_s(pBuf, "Client new send time %d", GetTickCount());
 			nRet = send(Conn, pBuf, strlen(pBuf), 0);
