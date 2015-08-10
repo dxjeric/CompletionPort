@@ -15,7 +15,7 @@
 #define WaitingAcceptCon 5
 #define AcceptExSockAddrInLen (sizeof(SOCKADDR_IN) + 16)
 #define MustPrint(s) {printf("Must >> %s\n", s); fflush(stdout);}
-#define TestIPAddr "127.0.0.1"
+#define TestIPAddr "192.168.150.128"
 
 
 typedef struct OverLapped
@@ -112,9 +112,9 @@ int main()
 		}
 		else
 		{
-			printf("Recv From Server [%s].\n", pBuf);
+			printf("Recv From Server [%s].", pBuf);
 
-			sprintf_s(pBuf, "Client new send time %d.\n", GetTickCount());
+			sprintf_s(pBuf, "Client new send time %d", GetTickCount());
 			nRet = send(Conn, pBuf, strlen(pBuf), 0);
 			if (nRet <= 0 && ((iErrorNo = WSAGetLastError()) != WSAEWOULDBLOCK))
 			{
